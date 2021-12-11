@@ -3,6 +3,10 @@ import subprocess
 import shlex
 import time
 
+import paho.mqtt.client as mqtt
+
+import credentials
+
 class Tracker:
     def __init__(self):
         self.min_accuracy = 50
@@ -10,17 +14,28 @@ class Tracker:
         self.last_pos = None
         self.last_updated = 0
         self.update_delay = 20  # [sec]
+        self.client = mqtt.Client()
+
+        if credentials.BROKER_USER and credentials.BROKER_PASS:
+            self.client.username_pw_set(
+                credentials.BROKER_USER,
+                credentials.BROKER_PASS)
+        elif credentials.BROKER_USER:
+            self.client.username_pw_set(credentials.BROKER_USER)
+
+        self.client.connect(credentials.BROKER, credentials.PORT)
+        self.client.loop_start()
 
     def get_data(self):
         print('Getting data...')
         data_gps = self.get_raw_data('gps', 'last')
         data_net = self.get_raw_data('network', 'last')
 
-        if (data_gps['elapsedMs'] < data_net['elapsedMs']
+        if (data_gps and data_gps['elapsedMs'] < data_net['elapsedMs']
                 and data_gps['accuracy'] < self.min_accuracy
                 and data_gps['elapsedMs'] < self.max_loc_age_ms):
             data = data_gps
-        elif (data_net['elapsedMs'] < data_gps['elapsedMs']
+        elif (data_net and data_net['elapsedMs'] < data_gps['elapsedMs']
                 and data_net['accuracy'] < self.min_accuracy
                 and data_net['elapsedMs'] < self.max_loc_age_ms):
             data = data_net
@@ -38,6 +53,7 @@ class Tracker:
                     pos.lon != self.last_pos.lon):
                 print('New position')
                 self.last_pos = pos
+                self.client.publish(credentials.PUB_TOPIC, json.dumps(data))
                 return data
 
         print('Same position')
