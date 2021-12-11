@@ -1,13 +1,17 @@
 import json
 import subprocess
 import shlex
+import time
 
 class Tracker:
     def __init__(self):
         self.min_accuracy = 50
         self.last_pos = None
+        self.last_updated = 0
+        self.update_delay = 20  # [sec]
 
     def get_data(self):
+        print('Getting data...')
         data_gps = self.get_raw_data('gps', 'last')
         data_net = self.get_raw_data('network', 'last')
 
@@ -20,13 +24,17 @@ class Tracker:
         else:
             data = self.get_raw_data('network', 'once')
 
+        self.last_updated = int(time.time())
+
         if data['accuracy'] < self.min_accuracy:
             pos = self.Loc(data['latitude'], data['longitude'])
             if not self.last_pos or (pos.lat != self.last_pos.lat) or (
                     pos.lon != self.last_pos.lon):
+                print('New position')
                 self.last_pos = pos
                 return data
 
+        print('Same position')
         return None
 
     def get_raw_data(self, provider='gps', request='last'):
@@ -67,6 +75,12 @@ class Tracker:
 
 
 tracker = Tracker()
-data = tracker.get_data()
 
-print(data)
+try:
+    while True:
+        if (time.time() - tracker.last_updated) > tracker.update_delay:
+            data = tracker.get_data()
+            if(data):
+                print(data)
+except KeyboardInterrupt:
+    print("Exiting")
