@@ -3,7 +3,33 @@ import subprocess
 import shlex
 
 class Tracker:
-    def get_data(self, provider='gps', request='last'):
+    def __init__(self):
+        self.min_accuracy = 50
+        self.last_pos = None
+
+    def get_data(self):
+        data_gps = self.get_raw_data('gps', 'last')
+        data_net = self.get_raw_data('network', 'last')
+
+        if (data_gps['elapsedMs'] < data_net['elapsedMs']
+                and data_gps['accuracy'] < self.min_accuracy):
+            data = data_gps
+        elif (data_net['elapsedMs'] < data_gps['elapsedMs']
+                and data_net['accuracy'] < self.min_accuracy):
+            data = data_net
+        else:
+            data = self.get_raw_data('network', 'once')
+
+        if data['accuracy'] < self.min_accuracy:
+            pos = self.Loc(data['latitude'], data['longitude'])
+            if not self.last_pos or (pos.lat != self.last_pos.lat) or (
+                    pos.lon != self.last_pos.lon):
+                self.last_pos = pos
+                return data
+
+        return None
+
+    def get_raw_data(self, provider='gps', request='last'):
         if provider not in ('gps', 'network', 'passive'):
             return None
         if request not in ('last', 'once', 'updates'):
@@ -33,6 +59,11 @@ class Tracker:
             print(e)
 
         return None
+
+    class Loc:
+        def __init__(self, lat=None, lon=None):
+            self.lat = lat
+            self.lon = lon
 
 
 tracker = Tracker()
