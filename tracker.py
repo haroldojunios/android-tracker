@@ -72,6 +72,8 @@ class Tracker:
             p = subprocess.run(cmd, capture_output=True)
             try:
                 data = json.loads(p.stdout)
+                if 'latitude' not in data or 'longitude' not in data:
+                    return None
                 if 'speed' in data:
                     data['speed'] = int(data['speed'])
                 if 'bearing' in data:
@@ -80,8 +82,14 @@ class Tracker:
                     data['altitude'] = int(data['altitude'])
                 if 'accuracy' in data:
                     data['accuracy'] = int(data['accuracy'])
+                else:
+                    return None
                 if 'vertical_accuracy' in data:
                     data['vertical_accuracy'] = int(data['vertical_accuracy'])
+                if 'elapsedMs' in data:
+                    data['ts'] = int(time.time() - (data['elapsedMs'] / 1000))
+                else:
+                    return None
                 return data
             except json.decoder.JSONDecodeError as e:
                 print(e)
