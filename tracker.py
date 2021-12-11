@@ -6,6 +6,7 @@ import time
 class Tracker:
     def __init__(self):
         self.min_accuracy = 50
+        self.max_loc_age_ms = 1000 * 60 * 30  # [ms] 30 minutes
         self.last_pos = None
         self.last_updated = 0
         self.update_delay = 20  # [sec]
@@ -16,13 +17,18 @@ class Tracker:
         data_net = self.get_raw_data('network', 'last')
 
         if (data_gps['elapsedMs'] < data_net['elapsedMs']
-                and data_gps['accuracy'] < self.min_accuracy):
+                and data_gps['accuracy'] < self.min_accuracy
+                and data_gps['elapsedMs'] < self.max_loc_age_ms):
             data = data_gps
         elif (data_net['elapsedMs'] < data_gps['elapsedMs']
-                and data_net['accuracy'] < self.min_accuracy):
+                and data_net['accuracy'] < self.min_accuracy
+                and data_net['elapsedMs'] < self.max_loc_age_ms):
             data = data_net
         else:
             data = self.get_raw_data('network', 'once')
+
+        if not data:
+            return None
 
         self.last_updated = int(time.time())
 
