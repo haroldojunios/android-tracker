@@ -2,6 +2,7 @@ import json
 import subprocess
 import shlex
 import time
+from collections import deque
 
 import paho.mqtt.client as mqtt
 
@@ -14,7 +15,9 @@ class Tracker:
         self.last_pos = None
         self.last_updated = 0
         self.update_delay = 20  # [sec]
+        self.data = deque()
         self.client = mqtt.Client()
+        self.client.on_connect = self.on_connect
 
         if credentials.BROKER_USER and credentials.BROKER_PASS:
             self.client.username_pw_set(
@@ -26,16 +29,30 @@ class Tracker:
         self.client.connect(credentials.BROKER, credentials.PORT)
         self.client.loop_start()
 
+    def main(self):
+        if (time.time() - self.last_updated) > self.update_delay:
+            data = self.get_data()
+            if(data):
+                self.data.append(data)
+                print(data)
+        if self.data and self.client.is_connected():
+            payload = json.dumps(self.data.popleft())
+            self.client.publish(credentials.PUB_TOPIC, payload, qos=1)
+
     def get_data(self):
         print('Getting data...')
         data_gps = self.get_raw_data('gps', 'last')
         data_net = self.get_raw_data('network', 'last')
 
-        if (data_gps and data_gps['elapsedMs'] < data_net['elapsedMs']
+        if (data_gps and
+            ((data_net and data_gps['elapsedMs'] < data_net['elapsedMs'])
+             or not data_net)
                 and data_gps['accuracy'] < self.min_accuracy
                 and data_gps['elapsedMs'] < self.max_loc_age_ms):
             data = data_gps
-        elif (data_net and data_net['elapsedMs'] < data_gps['elapsedMs']
+        elif (data_net and
+              ((data_gps and data_net['elapsedMs'] < data_gps['elapsedMs'])
+               or not data_gps)
                 and data_net['accuracy'] < self.min_accuracy
                 and data_net['elapsedMs'] < self.max_loc_age_ms):
             data = data_net
@@ -53,7 +70,6 @@ class Tracker:
                     pos.lon != self.last_pos.lon):
                 print('New position')
                 self.last_pos = pos
-                self.client.publish(credentials.PUB_TOPIC, json.dumps(data))
                 return data
 
         print('Same position')
@@ -98,6 +114,9 @@ class Tracker:
 
         return None
 
+    def on_connect(self, client, userdata, flags, rc):
+        print('Connection returned result: {}'.format(rc))
+
     class Loc:
         def __init__(self, lat=None, lon=None):
             self.lat = lat
@@ -108,9 +127,6 @@ tracker = Tracker()
 
 try:
     while True:
-        if (time.time() - tracker.last_updated) > tracker.update_delay:
-            data = tracker.get_data()
-            if(data):
-                print(data)
+        tracker.main()
 except KeyboardInterrupt:
     print("Exiting")
