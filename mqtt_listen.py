@@ -6,7 +6,8 @@ import paho.mqtt.client as mqtt
 import credentials
 
 class Listener:
-    def __init__(self):
+    def __init__(self, callback=None):
+        self.callback = callback
         self.data_path = 'data'
 
         self.client = mqtt.Client()
@@ -21,7 +22,7 @@ class Listener:
             self.client.username_pw_set(credentials.BROKER_USER)
 
         self.client.connect(credentials.BROKER, credentials.PORT)
-        self.client.loop_forever()
+        self.client.loop_start()
 
     def decode_text(self, text, topic):
         try:
@@ -31,10 +32,9 @@ class Listener:
                 text = text[:200] + '...'
             print('String "{}" is not json'.format(text))
             return
-
-        with open(self.data_path, 'a') as f:
-            f.write(text)
-            f.write('\n')
+        if self.callback:
+            # print('Sending {}... to callback'.format(text[:10]))
+            self.callback(text)
 
     def on_connect(self, client, userdata, flags, rc):
         print('Connection returned result: {}'.format(rc))
@@ -50,6 +50,3 @@ class Listener:
             text_ = text
         print('"{}" - "{}"'.format(topic, text_))
         self.decode_text(text, topic)
-
-
-listener = Listener()
