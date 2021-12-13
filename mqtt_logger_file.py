@@ -1,5 +1,3 @@
-import time
-
 from mqtt_listen import Listener
 
 def callback(payload):
@@ -12,4 +10,4 @@ def callback(payload):
 listener = Listener(callback)
 
 while True:
-    time.sleep(1)
+    continue
