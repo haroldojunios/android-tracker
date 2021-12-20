@@ -85,13 +85,13 @@ class Tracker:
             'termux-location -r {} -p {}'.format(request, provider))
 
         try:
-            p = subprocess.run(cmd, capture_output=True)
+            p = subprocess.run(cmd, capture_output=True, timeout=30)
             try:
                 data = json.loads(p.stdout)
                 if 'latitude' not in data or 'longitude' not in data:
                     return None
                 if 'speed' in data:
-                    data['speed'] = int(data['speed'])
+                    data['speed'] = data['speed'] * 3.6
                 if 'bearing' in data:
                     data['bearing'] = int(data['bearing'])
                 if 'altitude' in data:
@@ -106,9 +106,14 @@ class Tracker:
                     data['ts'] = int(time.time() - (data['elapsedMs'] / 1000))
                 else:
                     return None
+                if data['provider'] == 'network':
+                    del data['speed']
+                    del data['bearing']
                 return data
             except json.decoder.JSONDecodeError as e:
                 print(e)
+        except subprocess.TimeoutExpired:
+            print('Command timed out')
         except FileNotFoundError as e:
             print(e)
 
